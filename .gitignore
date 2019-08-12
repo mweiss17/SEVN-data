@@ -1,4 +1,25 @@
-data/SEVN/processed/*.gz
+# Ignore vuze+ videos
+data/SEVN/raw/vuze/*
+
+# Ignore panoramas
+data/SEVN/raw/panos/*
+
+# Ignore poses figures
+data/SEVN/raw/poses/poses.png
+data/SEVN/processed/pos_ang.png
+data/SEVN/processed/graph.png
+data/SEVN/processed/graph_load.png
+data/SEVN-mini/processed/graph.png
+data/SEVN-mini/processed/graph_load.png
+data/SEVN/processed/colored_graph.png
+data/SEVN/processed/degree_hist.png
+
+# Ignore images
+data/SEVN/processed/images.pkl.gz
+data/SEVN-mini/processed/images.pkl.gz
+
+# Ignore DS_Store files
+*.DS_Store
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

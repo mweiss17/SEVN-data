@@ -1,25 +1,36 @@
 #!/bin/sh
 
-# $1 = video path
-# $2 = destination folder
+VUZE_FOLDER='data/SEVN/raw/vuze'
 
-mkdir -p "$2/pngs"
+# Get the .MP4 in the video sub-folder of each date of data acquisition.
+for VIDEO in $VUZE_FOLDER/*/video/*.MP4; do
+  echo 'video file: '$VIDEO
+  F=`echo ${VIDEO/video/jpg} | cut -d'.' -f1`
+  mkdir -p ${F%/*}'/track_1'
+  mkdir -p ${F%/*}'/track_2'
+  # Videos to image sequence (30 frames per seconde).
+  # Video track 1: correspond to the front and right camera.
+  ffmpeg -i $VIDEO -r 30 -map 0:0 ${F%/*}'/track_1/'${F##*/}'_%06d.jpg'
+  # Video track 2: correspond to the back and left camera.
+  ffmpeg -i $VIDEO -r 30 -map 0:1 ${F%/*}'/track_2/'${F##*/}'_%06d.jpg'
+done
 
-ffmpeg -i $1 -r 30 -map 0:0 "$2/pngs/track_1_output_%06d.png"
-python scripts/crop.py $2/pngs crops
-python scripts/undistort.py $2/crops
+# Export conda functions in subshell.
+source ~/miniconda3/etc/profile.d/conda.sh
+# Activate conda env.
+conda activate SEVN-data
 
-# rm -rf $2/pngs
+for JPG_FOLDER in $VUZE_FOLDER/*/jpg/*; do
+    CROP_FOLDER=`echo ${JPG_FOLDER%/*/*}/crop`
+    mkdir -p $CROP_FOLDER
+    # Crops and rotates Vuze frames.
+    python scripts/crop.py --input_dir=$JPG_FOLDER --output_dir=$CROP_FOLDER
+done
 
-# Uncomment to convert the undistorted crops to jpgs 
-# mkdir -p "$2/undistorted_jpg/image_1"
-# mogrify -format jpg -quality 90 -path $2/undistorted_jpg/image_1  $2/undistorted/image_1/*.png
-# rm -rf $2/undistorted
- 
-
-
-
-
-
-
-
+for CROP_FOLDER in $VUZE_FOLDER/*/crop; do
+    UNDISTORT_FOLDER=`echo ${CROP_FOLDER%/*}/undistort`
+    echo $UNDISTORT_FOLDER
+    mkdir -p $UNDISTORT_FOLDER
+    # Undistort Vuze frames.
+    python scripts/undistort.py --input_dir=$CROP_FOLDER --output_dir=$UNDISTORT_FOLDER
+done

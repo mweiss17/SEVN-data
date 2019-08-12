@@ -1,0 +1,17 @@
+name: SEVN-data
+channels:
+  - conda-forge
+dependencies:
+  - python=3.6
+  - numpy
+  - numba
+  - scipy
+  - pandas
+  - quaternion
+  - networkx
+  - matplotlib
+  - opencv
+  - pyyaml
+  - pip:
+    - tqdm
+    - tables
