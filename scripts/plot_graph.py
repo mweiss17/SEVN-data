@@ -27,18 +27,8 @@ def parse_args():
     args = parser.parse_args()
     return args
 
+def plot_graph(input_dir, zones=None, graph_fname=None):
 
-if __name__ == '__main__':
-    # Load the arguments
-    args = parse_args()
-
-    input_dir = args.input_dir
-    print('input_dir : {}'.format(input_dir))
-
-    zones = args.zones
-
-    # Load graph
-    graph_fname = os.path.join(input_dir, 'graph.pkl')
     G = nx.read_gpickle(graph_fname)
 
     pos = {k: v.get('coords')[0:2] for k, v in G.nodes(data=True)}
@@ -103,3 +93,18 @@ if __name__ == '__main__':
     hist_fname = os.path.join(input_dir, 'degree_hist.png')
     print('hist_fname {}:'.format(hist_fname))
     plt.savefig(hist_fname)
+
+
+if __name__ == '__main__':
+    # Load the arguments
+    args = parse_args()
+
+    input_dir = args.input_dir
+    print('input_dir : {}'.format(input_dir))
+
+    zones = args.zones
+
+    # Load graph
+    graph_fname = os.path.join(input_dir, 'graph.pkl')
+
+    plot_graph(input_dir, zones, graph_fname)
