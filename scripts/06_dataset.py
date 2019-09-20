@@ -1,5 +1,6 @@
 import os
-
+import h5py
+import tables
 import argparse
 import cv2
 import gzip
@@ -11,7 +12,7 @@ import pickle
 from tqdm import tqdm
 import xml.etree.ElementTree as et
 
-from scripts.utils import check_dir
+from utils import check_dir
 
 from matplotlib import pyplot as plt
 
@@ -255,13 +256,11 @@ def clean_positions(G, coords_df):
     # Clean the graph by moving around some nodes.
     for nodes, x, y in nodes_to_move:
         for idx, node in enumerate(nodes):
-            try:
-                G.nodes[node]['coords'][0] += x[idx]
-                G.nodes[node]['coords'][1] += y[idx]
-                coords_df.at[node, 'x'] = coords_df.loc[node]['x'] + x[idx]
-                coords_df.at[node, 'y'] = coords_df.loc[node]['y'] + y[idx]
-            except:
-                pass
+              # Must fix this for full env
+              G.nodes[node]['coords'][0] += x[idx]
+              G.nodes[node]['coords'][1] += y[idx]
+              coords_df.at[node, 'x'] = coords_df.loc[node]['x'] + x[idx]
+              coords_df.at[node, 'y'] = coords_df.loc[node]['y'] + y[idx]
 
     return G, coords_df
 
@@ -317,7 +316,7 @@ def smallest_angles(a1, a2):
 
 def edge_is_usable(G, n1, n2):
     '''
-    Edge is usabable.
+    Edge is usable.
 
     Parameters
     ----------
@@ -657,7 +656,19 @@ def process_labels(paths, shape, w, h, crop_margin):
     return label_df
 
 
-def process_images(paths, w, h, crop_margin):
+def normalize_image(image):
+    '''
+    Values calculated for SEVN: mean=[0.45247, 0.45871, 0.47285],
+    std=[0.25556, 0.26181, 0.27931].
+    '''
+    normed_image = image / 255.0
+    normed_image[:, :, 0] = (normed_image[:, :, 0] - 0.45247) / 0.25556
+    normed_image[:, :, 1] = (normed_image[:, :, 1] - 0.45871) / 0.26181
+    normed_image[:, :, 2] = (normed_image[:, :, 2] - 0.47285) / 0.27931
+    return normed_image
+
+
+def process_images(image_fname, paths, w, h, crop_margin):
     '''
     Loads in the pano images from disk, crops them and resizes them.
 
@@ -678,20 +689,26 @@ def process_images(paths, w, h, crop_margin):
         Dictionary containing the processed images.
 
     '''
+
+    # TODO: writeout the large-scale images, too
+    hdf5_file = tables.open_file(image_fname, mode='w')
+    img_dtype = tables.Atom.from_dtype(np.dtype(np.float))
+    storage = hdf5_file.create_earray(hdf5_file.root, 'images', img_dtype, shape=(0, 84, 224, 3))
     thumbnails = np.zeros((len(paths), 84, 224, 3))
     frames = np.zeros(len(paths))
-
     # Get panos and crop'em into thumbnails
     for idx, path in enumerate(tqdm(paths, desc='Loading thumbnails')):
         frame = int(path.split('_')[-1].split('.')[0])
         frames[idx] = frame
+        path = path.replace('jpg', 'png')
         image = cv2.imread(path)
+        image = normalize_image(image)
         image = cv2.resize(image, (w, h))[:, :, ::-1]
         image = image[crop_margin:h - crop_margin]
-        thumbnails[idx] = image
-
-    images = {frame: img for frame, img in zip(frames, thumbnails)}
-    return images
+        storage.append(image[None])
+    hdf5_file.create_array(hdf5_file.root, 'frames', frames)
+    hdf5_file.close()
+    return 
 
 
 def create_dataset(data_path='data/SEVN', do_images=True, do_graph=True,
@@ -743,7 +760,7 @@ def create_dataset(data_path='data/SEVN', do_images=True, do_graph=True,
         plot_fname = os.path.join(output_path, 'processed/graph.png')
         print('figure_fname: {}'.format(plot_fname))
     if do_images:
-        image_fname = os.path.join(output_path, 'processed/images.pkl.gz')
+        image_fname = os.path.join(output_path, 'processed/images.hdf5')
         print('image_fname: {}'.format(image_fname))
 
     if do_graph:
@@ -780,10 +797,12 @@ def create_dataset(data_path='data/SEVN', do_images=True, do_graph=True,
         # Label street segment and intersection.
         meta_df = label_segments(meta_df)
         label_index = meta_df.groupby(meta_df.frame).cumcount()
-        meta_df.index = pd.MultiIndex.from_arrays([meta_df.frame, label_index],
-                                                  names=['frame', 'label'])
-        meta_df.sort_index(inplace=True)
-        meta_df.to_hdf(meta_fname, key='df', index=False)
+        # meta_df.index = pd.MultiIndex.from_arrays([meta_df.frame, label_index],
+        #                                           names=['frame', 'label'])
+        # meta_df.sort_index(inplace=True)
+        meta_df['obj_type'] = meta_df['obj_type'].fillna('')
+        meta_df['is_goal'] = meta_df['is_goal'].fillna(False)
+        meta_df.to_hdf(meta_fname, key='df', format='table', index=['frame', 'label'])
     else:
         # Load meta.
         meta_df = pd.read_hdf(meta_fname,
@@ -803,14 +822,10 @@ def create_dataset(data_path='data/SEVN', do_images=True, do_graph=True,
         img_paths = img_paths[:limit]
 
     if do_images:
-        # Loads in the pano images from disk, crops them and resizes them.
-        images = process_images(img_paths,
+        # Loads in the pano images from disk, crops, resizes, and saves.
+        process_images(image_fname, img_paths,
                                 w=224, h=126,
                                 crop_margin=int(126*(1/6)))
-        # Save images.
-        f = gzip.GzipFile(image_fname, 'w')
-        pickle.dump(images, f)
-        f.close()
 
     return meta_df, G, img_paths
 
