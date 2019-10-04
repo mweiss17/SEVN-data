@@ -5,7 +5,7 @@ import collections
 import matplotlib.pyplot as plt
 import networkx as nx
 import pandas as pd
-
+import numpy as np
 
 def parse_args():
     '''
@@ -34,36 +34,76 @@ def plot_graph(input_dir, zones=None, graph_fname=None):
     pos = {k: v.get('coords')[0:2] for k, v in G.nodes(data=True)}
     if zones:
         # Get labels.
-        meta_fname = os.path.join(input_dir, 'meta.hdf5')
-        meta_df = pd.read_hdf(meta_fname, key='df', index=False)
+        coords = np.load(os.path.join(input_dir, 'pos_ang.npy'))
+        coord_df = pd.DataFrame({'x': coords[:, 2],
+                                  'y': coords[:, 3],
+                                  'z': coords[:, 4],
+                                  'angle': coords[:, -1],
+                                  'timestamp': coords[:, 1],
+                                  'frame': [int(x) for x in coords[:, 1]*30]})
+
+        # Filter the pano coordinates by spatial relation.
+        G, coord_df = construct_spatial_graph(coord_df)
+        coord_df = pd.read_hdf(meta_fname, key='df', index=False)
         corners = [node for node in G.nodes if node in
-                   meta_df[meta_df.type == 'intersection'].frame]
+                   coord_df[coord_df.type == 'intersection'].frame]
         streets = [node for node in G.nodes if node in
-                   meta_df[meta_df.type == 'street_segment'].frame]
+                   coord_df[coord_df.type == 'street_segment'].frame]
         other = [node for node in G.nodes if node not in
-                 meta_df[meta_df.type == 'street_segment'].frame]
+                 coord_df[coord_df.type == 'street_segment'].frame]
         other = [node for node in other if node not in
-                 meta_df[meta_df.type == 'intersection'].frame]
+                 coord_df[coord_df.type == 'intersection'].frame]
+        box = (24, 76, -125, 10)
+        node_blacklist = []
+        node_blacklist.extend([x for x in range(877, 879)])
+        node_blacklist.extend([x for x in range(52, 56)])
+        node_blacklist.extend([x for x in range(31, 39)])
+        node_blacklist.extend([x for x in range(2040, 2045)])
+        node_blacklist.extend([x for x in range(2057, 2063)])
+        node_blacklist.extend([x for x in range(3661, 3669)])
+        node_blacklist.extend([x for x in range(780, 784)])
+
+        coord_df = coord_df[((coord_df.x > box[0]) &
+                               (coord_df.x < box[1]) &
+                               (coord_df.y > box[2]) &
+                               (coord_df.y < box[3]))]
+        import pdb; pdb.set_trace()
+        coord_df = coord_df[~coord_df.index.isin(node_blacklist)]
+        test = [node for node in G.nodes if node in coord_df.frame]
+
+# (1) #404387
+# (2) #22a784
+# (3) #fde724
+# (4) #440154
+# (5) #29788e
+# (6) #79d151
 
         nx.draw_networkx_nodes(G, pos,
                                nodelist=corners,
-                               node_color='#e23f3a',
+                               node_color='#440154',
                                node_size=1,
                                alpha=0.8,
                                with_label=True)
 
         nx.draw_networkx_nodes(G, pos,
                                nodelist=streets,
-                               node_color='#000cda',
+                               node_color='#79d151',
                                node_size=1,
                                alpha=0.8)
 
         nx.draw_networkx_nodes(G, pos,
-                               nodelist=other,
-                               node_color='g',
-                               node_size=20,
-                               alpha=0.8)
+                               nodelist=test,
+                               node_color='#fde724',
+                               node_size=1,
+                               alpha=0.8,
+                               with_label=True)
 
+        # nx.draw_networkx_nodes(G, pos,
+        #                        nodelist=other,
+        #                        node_color='g',
+        #                        node_size=20,
+        #                        alpha=0.8)
+        #
         edges = nx.draw_networkx_edges(G, pos=pos)
 
     else:
