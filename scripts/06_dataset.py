@@ -40,33 +40,25 @@ def parse_args():
                         help='If true, build the graph.')
     parser.add_argument('--do_plot', action='store_true',
                         help='If true, plot the data.')
-    parser.add_argument('--is_mini', action='store_true',
-                        help='If true, build the mini dataset.')
-    parser.add_argument('--limit', type=int, default=-1,
-                        help='''Limit the size of the dataset, for
-                                debugging purpose. -1 means use all the
-                                data.''')
+    parser.add_argument('--is_test', action='store_true',
+                        help='If true, plot the data.')
     args = parser.parse_args()
     return args
 
 
-def cleanup_graph(coords_df, is_mini):
+def cleanup_graph(coord_df, is_test):
     '''
     Description.
 
     Parameters
     ----------
-    coords_df: pandas.DataFrame
+    coord_df: pandas.DataFrame
         Dataframe containing the frame coordinates to clean.
-    is_mini: bool
-        If true, do the mini dataset version.
 
     Returns
     -------
-    coords_df: pandas.DataFrame
+    coord_df: pandas.DataFrame
         Dataframe containing the frame coordinates.
-        Same as input if is_mini=False. Otherwise the one corresponding to the
-        mini dataset.
     node_blacklist: list
         List containing the nodes to remove.
     edge_blacklist: list
@@ -81,7 +73,7 @@ def cleanup_graph(coords_df, is_mini):
                       5467, 5514, 174, 188, 189, 190, 2390, 2391, 2392, 2393,
                       1862, 1863, 1512, 1821, 4227, 1874, 3894, 3895, 3896,
                       3897, 3898, 2887, 608, 3025, 3090, 3013, 3090, 780, 781,
-                      162, 1822, 1725, 1726, 1513, 3875, 4842, 4870, 4907,
+                      162, 1822, 1725, 1726, 1513, 3875, 4842, 4907, #4870,
                       4717, 6214, 6215, 5965, 5966, 4715, 3362, 5358, 3419,
                       5457, 5458, 3418]
     node_blacklist.extend([x for x in range(1330, 1348)])
@@ -171,25 +163,10 @@ def cleanup_graph(coords_df, is_mini):
                  (5359, 3177), (5456, 3188), (5456, 3187), (3186, 3248),
                  (5456, 3186), (161, 163)]
 
-    if is_mini:
-        # Filter more for the mini dataset version.
-        node_blacklist.extend([x for x in range(877, 879)])
-        node_blacklist.extend([x for x in range(52, 56)])
-        node_blacklist.extend([x for x in range(31, 39)])
-        node_blacklist.extend([x for x in range(2040, 2045)])
-        node_blacklist.extend([x for x in range(2057, 2063)])
-        node_blacklist.extend([x for x in range(3661, 3669)])
-        node_blacklist.extend([x for x in range(780, 784)])
-        box = (24, 76, -125, 10)
-        coords_df = coords_df[((coords_df.x > box[0]) &
-                               (coords_df.x < box[1]) &
-                               (coords_df.y > box[2]) &
-                               (coords_df.y < box[3]))]
-
-    return coords_df, node_blacklist, edge_blacklist, add_edges
+    return coord_df, node_blacklist, edge_blacklist, add_edges
 
 
-def clean_positions(G, coords_df):
+def clean_positions(G, coord_df):
     '''
     Clean the graph and coordinates dataframe "by hand" by moving around some
     nodes.
@@ -198,14 +175,14 @@ def clean_positions(G, coords_df):
     ----------
     G: networkx.Graph
         Graph.
-    coords_df: pandas.DataFrame
+    coord_df: pandas.DataFrame
         Dataframe contraining the frame coordinates.
 
     Returns
     -------
     G: networkx.Graph
         Cleaned graph.
-    coords_df: pandas.DataFrame
+    coord_df: pandas.DataFrame
         Cleaned Dataframe.
 
     '''
@@ -256,13 +233,11 @@ def clean_positions(G, coords_df):
     # Clean the graph by moving around some nodes.
     for nodes, x, y in nodes_to_move:
         for idx, node in enumerate(nodes):
-              # Must fix this for full env
-              G.nodes[node]['coords'][0] += x[idx]
-              G.nodes[node]['coords'][1] += y[idx]
-              coords_df.at[node, 'x'] = coords_df.loc[node]['x'] + x[idx]
-              coords_df.at[node, 'y'] = coords_df.loc[node]['y'] + y[idx]
-
-    return G, coords_df
+            G.nodes[node]['coords'][0] += x[idx]
+            G.nodes[node]['coords'][1] += y[idx]
+            coord_df.at[node, 'x'] = coord_df.loc[node]['x'] + x[idx]
+            coord_df.at[node, 'y'] = coord_df.loc[node]['y'] + y[idx]
+    return G, coord_df
 
 
 def get_angle_between_nodes(G, n1, n2):
@@ -350,7 +325,7 @@ def edge_is_usable(G, n1, n2):
     return (n1, n2) in usable_edges
 
 
-def clean_edges(G, coords_df):
+def clean_edges(G, coord_df):
     '''
     Find edges that will not be used by the agent and print them.
 
@@ -358,7 +333,7 @@ def clean_edges(G, coords_df):
     ----------
     G: networkx.Graph
         Graph.
-    coords_df: pandas.DataFrame
+    coord_df: pandas.DataFrame
         Dataframe contraining the frame coordinates.
 
     '''
@@ -397,40 +372,37 @@ def plot_graph(G, figure_fname):
     plt.savefig(figure_fname)
 
 
-def construct_spatial_graph(coords_df, is_mini):
+def construct_spatial_graph(coord_df, is_test):
     '''
     Filter the pano coordinates by spatial relation and create the graph.
 
     Parameters
     ----------
-    coords_df: pandas.DataFrame
+    coord_df: pandas.DataFrame
         Dataframe contraining the frame coordinates.
-    is_mini: bool
-        If true, return G and coords_df for the mini dataset.
 
     Returns
     -------
     G: networkx.Graph
         Processed graph.
-    coords_df: pandas.DataFrame
+    coord_df: pandas.DataFrame
         Processed dataframe containing the frame coordinates.
 
     '''
     # Cleanup graph by hand.
-    coords_df, node_blacklist, edge_blacklist, add_edges = cleanup_graph(
-            coords_df, is_mini)
-    # Remove blacklisted nodes.
-    coords_df = coords_df[~coords_df.index.isin(node_blacklist)]
+    coord_df, node_blacklist, edge_blacklist, add_edges = cleanup_graph(coord_df, is_test)
+
+    coord_df = coord_df[~coord_df.index.isin(node_blacklist)]
 
     # Init graph.
     G = nx.Graph()
     # Add nodes to the graph.
-    G.add_nodes_from(coords_df.index)
+    G.add_nodes_from(coord_df.index)
 
     nodes = G.nodes
     for node_1_idx in tqdm(nodes, desc='Adding edges to graph'):
         # Add node informations to the graph.
-        meta = coords_df[coords_df.index == node_1_idx]
+        meta = coord_df[coord_df.index == node_1_idx]
         coords = np.array([meta['x'].values[0],
                            meta['y'].values[0],
                            meta['z'].values[0]])
@@ -441,14 +413,14 @@ def construct_spatial_graph(coords_df, is_mini):
 
         # Find nearby nodes.
         radius = 1.1
-        nearby_nodes = coords_df[(coords_df.x > coords[0] - radius) &
-                                 (coords_df.x < coords[0] + radius) &
-                                 (coords_df.y > coords[1] - radius) &
-                                 (coords_df.y < coords[1] + radius)]
+        nearby_nodes = coord_df[(coord_df.x > coords[0] - radius) &
+                                 (coord_df.x < coords[0] + radius) &
+                                 (coord_df.y > coords[1] - radius) &
+                                 (coord_df.y < coords[1] + radius)]
         for node_2_idx in nearby_nodes.index:
             if node_1_idx == node_2_idx:
                 continue
-            meta2 = coords_df[coords_df.index == node_2_idx]
+            meta2 = coord_df[coord_df.index == node_2_idx]
             coords2 = np.array([meta2['x'].values[0],
                                 meta2['y'].values[0],
                                 meta2['z'].values[0]])
@@ -469,34 +441,34 @@ def construct_spatial_graph(coords_df, is_mini):
 
     # Clean the graph and coordinates dataframe "by hand" by moving around
     # some nodes.
-    G, coords_df = clean_positions(G, coords_df)
+    G, coord_df = clean_positions(G, coord_df)
 
     # Find edges that will not be used by the agent and print them.
-    clean_edges(G, coords_df)
+    clean_edges(G, coord_df)
 
     # Remap nodes
-    mapping = coords_df.loc[coords_df.index, 'frame'].to_dict()
+    mapping = coord_df.loc[coord_df.index, 'frame'].to_dict()
     G = nx.relabel_nodes(G, mapping)
-    return G, coords_df
+    return G, coord_df
 
 
-def label_segments(coords_df):
+def label_segments(coord_df):
     '''
     Label street segment and intersection.
 
     Parameters
     ----------
-    coords_df: pandas.DataFrame
+    coord_df: pandas.DataFrame
         Dataframe to label.
 
     Returns
     -------
-    coords_df: pandas.DataFrame
+    coord_df: pandas.DataFrame
         Labeled dataframe.
 
     '''
-    coords_df['type'] = None
-    coords_df['group'] = None
+    coord_df['type'] = None
+    coord_df['group'] = None
     street_segments = [(25.3, 30.5, -113, -1.8),
                        (33, 38, -113.25, -2.5),
                        (62, 66, -115.8, -3.39),
@@ -550,23 +522,23 @@ def label_segments(coords_df):
                           (33.6, 42.75, 260.69, 272.9),
                           (67.5, 92.7, 258.9, 274)])
     for idx, box in enumerate(street_segments):
-        segment = coords_df[((coords_df.x > box[0]) &
-                             (coords_df.x < box[1]) &
-                             (coords_df.y > box[2]) &
-                             (coords_df.y < box[3]))]
+        segment = coord_df[((coord_df.x > box[0]) &
+                             (coord_df.x < box[1]) &
+                             (coord_df.y > box[2]) &
+                             (coord_df.y < box[3]))]
         segment['type'] = 'street_segment'
         segment['group'] = idx
-        coords_df.loc[segment.index] = segment
+        coord_df.loc[segment.index] = segment
 
     for idx, box in enumerate(intersections):
-        intersection = coords_df[((coords_df.x > box[0]) &
-                                  (coords_df.x < box[1]) &
-                                  (coords_df.y > box[2]) &
-                                  (coords_df.y < box[3]))]
+        intersection = coord_df[((coord_df.x > box[0]) &
+                                  (coord_df.x < box[1]) &
+                                  (coord_df.y > box[2]) &
+                                  (coord_df.y < box[3]))]
         intersection['type'] = 'intersection'
         intersection['group'] = idx
-        coords_df.loc[intersection.index] = intersection
-    return coords_df
+        coord_df.loc[intersection.index] = intersection
+    return coord_df
 
 
 def process_labels(paths, shape, w, h, crop_margin):
@@ -708,11 +680,11 @@ def process_images(image_fname, paths, w, h, crop_margin):
         storage.append(image[None])
     hdf5_file.create_array(hdf5_file.root, 'frames', frames)
     hdf5_file.close()
-    return 
+    return
 
 
 def create_dataset(data_path='data/SEVN', do_images=True, do_graph=True,
-                   do_plot=False, is_mini=False, limit=-1):
+                   do_plot=False):
     '''
     If do_graph: pre-processes the pose data associated with the image
     and calls the fonction to create the graph and to process the labels.
@@ -730,16 +702,11 @@ def create_dataset(data_path='data/SEVN', do_images=True, do_graph=True,
         If true, build the graph. Default = False.
     do_plot: bool
         If true, plot the data. Default = False.
-    is_mini: bool
-        If true bluid the mini dataset. Default = False.
-    limit: int
-        Limit the size of the dataset, for debugging purpose.
-        Default = -1 (i.e. use all the data.)
 
     Returns
     -------
-    meta_df: pandas.DataFrame
-        Dataframe containing the labels and coordinates.
+    coord_df: pandas.DataFrame
+        Dataframe containing the coordinates for each pano.
     G: networkx.Graph
         Graph.
     img_paths: list
@@ -748,12 +715,12 @@ def create_dataset(data_path='data/SEVN', do_images=True, do_graph=True,
     '''
     # Set up output path.
     output_path = data_path
-    if is_mini:
-        output_path = data_path + '-mini'
 
     # Print output file names.
-    meta_fname = os.path.join(output_path, 'processed/meta.hdf5')
-    print('meta_fname: {}'.format(meta_fname))
+    coord_df_fname = os.path.join(output_path, 'processed/coord.hdf5')
+    print('coord_df_fname: {}'.format(coord_df_fname))
+    label_df_fname = os.path.join(output_path, 'processed/label.hdf5')
+    print('label_df_fname: {}'.format(label_df_fname))
     graph_fname = os.path.join(output_path, 'processed/graph.pkl')
     print('graph_fname: {}'. format(graph_fname))
     if do_plot:
@@ -766,10 +733,7 @@ def create_dataset(data_path='data/SEVN', do_images=True, do_graph=True,
     if do_graph:
         # Load frame coordinates.
         coords = np.load(os.path.join(data_path, 'processed/pos_ang.npy'))
-        if limit > 0:
-            # Take a subset of the frame coordinates.
-            coords = coords[:limit]
-        coords_df = pd.DataFrame({'x': coords[:, 2],
+        coord_df = pd.DataFrame({'x': coords[:, 2],
                                   'y': coords[:, 3],
                                   'z': coords[:, 4],
                                   'angle': coords[:, -1],
@@ -777,7 +741,7 @@ def create_dataset(data_path='data/SEVN', do_images=True, do_graph=True,
                                   'frame': [int(x) for x in coords[:, 1]*30]})
 
         # Filter the pano coordinates by spatial relation.
-        G, coords_df = construct_spatial_graph(coords_df, is_mini)
+        G, coord_df = construct_spatial_graph(coord_df, args.is_test)
         if do_plot:
             # Plot the graph.
             plot_graph(G, plot_fname)
@@ -786,26 +750,30 @@ def create_dataset(data_path='data/SEVN', do_images=True, do_graph=True,
 
         # Get existing label paths.
         label_paths = [data_path + '/raw/labels/pano_' + str(frame).zfill(6) +
-                       '.xml' for frame in coords_df['frame'].tolist()]
+                       '.xml' for frame in coord_df['frame'].tolist()]
         label_paths = [path for path in label_paths if os.path.isfile(path)]
+
         # Process labels.
         label_df = process_labels(label_paths,
                                   shape=(3840, 2160),
                                   w=224, h=126, crop_margin=int(126*(1/6)))
-        # Add labels to coords_df.
-        meta_df = label_df.merge(coords_df, how='outer', on='frame')
+        label_df['obj_type'] = label_df['obj_type'].fillna('')
+        label_df['is_goal'] = label_df['is_goal'].fillna(False)
+        label_df.index = label_df.frame
+        label_df = label_df.drop(['frame'], axis=1)
+        label_df.to_hdf(label_df_fname, key='df', format='table')
+
         # Label street segment and intersection.
-        meta_df = label_segments(meta_df)
-        label_index = meta_df.groupby(meta_df.frame).cumcount()
-        # meta_df.index = pd.MultiIndex.from_arrays([meta_df.frame, label_index],
-        #                                           names=['frame', 'label'])
-        # meta_df.sort_index(inplace=True)
-        meta_df['obj_type'] = meta_df['obj_type'].fillna('')
-        meta_df['is_goal'] = meta_df['is_goal'].fillna(False)
-        meta_df.to_hdf(meta_fname, key='df', format='table', index=['frame', 'label'])
+        coord_df = label_segments(coord_df)
+        coord_df.index = coord_df.frame
+        coord_df = coord_df.drop(['frame'], axis=1)
+        coord_df.to_hdf(coord_df_fname, key='df', format='table')
     else:
-        # Load meta.
-        meta_df = pd.read_hdf(meta_fname,
+        # Load coordinates.
+        coord_df = pd.read_hdf(coord_df_fname,
+                              key='df', index=False)
+        # Load labels.
+        label_df = pd.read_hdf(label_df_fname,
                               key='df', index=False)
         # Load graph.
         G = nx.read_gpickle(graph_fname)
@@ -814,12 +782,9 @@ def create_dataset(data_path='data/SEVN', do_images=True, do_graph=True,
             plot_graph(G, plot_fname)
 
     # Get png names.
-    frame_num = sorted(set(meta_df['frame'].tolist()))
+    frame_num = set(coord_df.index.tolist())
     img_paths = [data_path + '/raw/panos/pano_' + str(frame).zfill(6) +
                  '.jpg' for frame in frame_num]
-    if limit > 0:
-        # Apply limit.
-        img_paths = img_paths[:limit]
 
     if do_images:
         # Loads in the pano images from disk, crops, resizes, and saves.
@@ -827,7 +792,7 @@ def create_dataset(data_path='data/SEVN', do_images=True, do_graph=True,
                                 w=224, h=126,
                                 crop_margin=int(126*(1/6)))
 
-    return meta_df, G, img_paths
+    return coord_df, G, img_paths
 
 
 if __name__ == '__main__':
@@ -845,12 +810,9 @@ if __name__ == '__main__':
     print('do_graph: {}'.format(do_graph))
     do_plot = args.do_plot
     print('do_plot: {}'.format(do_plot))
-    is_mini = args.is_mini
-    print('is_mini: {}'.format(is_mini))
 
     # Create dataset.
-    meta_df, G, img_paths = create_dataset(data_path=data_path,
+    coord_df, G, img_paths = create_dataset(data_path=data_path,
                                            do_images=do_images,
                                            do_graph=do_graph,
-                                           do_plot=do_plot,
-                                           is_mini=is_mini)
+                                           do_plot=do_plot)
