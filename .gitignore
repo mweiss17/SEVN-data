@@ -14,6 +14,9 @@ data/SEVN-mini/processed/graph_load.png
 data/SEVN/processed/colored_graph.png
 data/SEVN/processed/degree_hist.png
 
+# Ignore processed data
+data/SEVN/processed/*
+
 # Ignore images
 data/SEVN/processed/images.pkl.gz
 data/SEVN-mini/processed/images.pkl.gz
@@ -122,6 +125,9 @@ venv.bak/
 
 # mkdocs documentation
 /site
+
+# pycharm
+.idea/
 
 # mypy
 .mypy_cache/

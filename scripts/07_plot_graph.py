@@ -43,16 +43,11 @@ def plot_graph(input_dir, zones=None, graph_fname=None):
                                   'frame': [int(x) for x in coords[:, 1]*30]})
 
         # Filter the pano coordinates by spatial relation.
-        G, coord_df = construct_spatial_graph(coord_df)
-        coord_df = pd.read_hdf(meta_fname, key='df', index=False)
+        coord_df = pd.read_hdf(os.path.join(input_dir, "coord.hdf5"), key='df', index=False)
         corners = [node for node in G.nodes if node in
-                   coord_df[coord_df.type == 'intersection'].frame]
+                   coord_df[coord_df.type == 'intersection'].index]
         streets = [node for node in G.nodes if node in
-                   coord_df[coord_df.type == 'street_segment'].frame]
-        other = [node for node in G.nodes if node not in
-                 coord_df[coord_df.type == 'street_segment'].frame]
-        other = [node for node in other if node not in
-                 coord_df[coord_df.type == 'intersection'].frame]
+                   coord_df[coord_df.type == 'street_segment'].index]
         box = (24, 76, -125, 10)
         node_blacklist = []
         node_blacklist.extend([x for x in range(877, 879)])
@@ -67,16 +62,9 @@ def plot_graph(input_dir, zones=None, graph_fname=None):
                                (coord_df.x < box[1]) &
                                (coord_df.y > box[2]) &
                                (coord_df.y < box[3]))]
-        import pdb; pdb.set_trace()
         coord_df = coord_df[~coord_df.index.isin(node_blacklist)]
-        test = [node for node in G.nodes if node in coord_df.frame]
-
-# (1) #404387
-# (2) #22a784
-# (3) #fde724
-# (4) #440154
-# (5) #29788e
-# (6) #79d151
+        test_seg = [node for node in G.nodes if node in coord_df[coord_df.type == 'street_segment'].index]
+        test_int = [node for node in G.nodes if node in coord_df[coord_df.type == 'intersection'].index]
 
         nx.draw_networkx_nodes(G, pos,
                                nodelist=corners,
@@ -92,18 +80,19 @@ def plot_graph(input_dir, zones=None, graph_fname=None):
                                alpha=0.8)
 
         nx.draw_networkx_nodes(G, pos,
-                               nodelist=test,
+                               nodelist=test_seg,
                                node_color='#fde724',
                                node_size=1,
                                alpha=0.8,
                                with_label=True)
 
-        # nx.draw_networkx_nodes(G, pos,
-        #                        nodelist=other,
-        #                        node_color='g',
-        #                        node_size=20,
-        #                        alpha=0.8)
-        #
+        nx.draw_networkx_nodes(G, pos,
+                               nodelist=test_int,
+                               node_color='#29788e',
+                               node_size=1,
+                               alpha=0.8,
+                               with_label=True)
+
         edges = nx.draw_networkx_edges(G, pos=pos)
 
     else:

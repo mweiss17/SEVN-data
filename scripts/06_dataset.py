@@ -34,8 +34,9 @@ def parse_args():
     parser.add_argument('--data_path', type=str, default='data/SEVN',
                         help='Path to the data directory.')
     parser.add_argument('--do_images', action='store_true',
-                        help='''If true, build the lower resolution images
-                                to disk.''')
+                        help='''If true, build the lower resolution images to disk.''')
+    parser.add_argument('--do_images_high_res', action='store_true',
+                        help='''If true, build the high resolution images to disk.''')
     parser.add_argument('--do_graph', action='store_true',
                         help='If true, build the graph.')
     parser.add_argument('--do_plot', action='store_true',
@@ -665,11 +666,10 @@ def process_images(image_fname, paths, w, h, crop_margin):
     # TODO: writeout the large-scale images, too
     hdf5_file = tables.open_file(image_fname, mode='w')
     img_dtype = tables.Atom.from_dtype(np.dtype(np.float))
-    storage = hdf5_file.create_earray(hdf5_file.root, 'images', img_dtype, shape=(0, 84, 224, 3))
-    thumbnails = np.zeros((len(paths), 84, 224, 3))
+    storage = hdf5_file.create_earray(hdf5_file.root, 'images', img_dtype, shape=(0, h - 2 * crop_margin, w, 3))
     frames = np.zeros(len(paths))
-    # Get panos and crop'em into thumbnails
-    for idx, path in enumerate(tqdm(paths, desc='Loading thumbnails')):
+    # Get panos and crop them
+    for idx, path in enumerate(tqdm(paths, desc='Loading images')):
         frame = int(path.split('_')[-1].split('.')[0])
         frames[idx] = frame
         path = path.replace('jpg', 'png')
@@ -683,7 +683,7 @@ def process_images(image_fname, paths, w, h, crop_margin):
     return
 
 
-def create_dataset(data_path='data/SEVN', do_images=True, do_graph=True,
+def create_dataset(data_path='data/SEVN', do_images=True, do_images_high_res=True, do_graph=True,
                    do_plot=False):
     '''
     If do_graph: pre-processes the pose data associated with the image
@@ -729,6 +729,9 @@ def create_dataset(data_path='data/SEVN', do_images=True, do_graph=True,
     if do_images:
         image_fname = os.path.join(output_path, 'processed/images.hdf5')
         print('image_fname: {}'.format(image_fname))
+    if do_images_high_res:
+        high_res_image_fname = os.path.join(output_path, 'processed/images-high-res.hdf5')
+        print('high_res_image_fname: {}'.format(high_res_image_fname))
 
     if do_graph:
         # Load frame coordinates.
@@ -788,9 +791,15 @@ def create_dataset(data_path='data/SEVN', do_images=True, do_graph=True,
 
     if do_images:
         # Loads in the pano images from disk, crops, resizes, and saves.
-        process_images(image_fname, img_paths,
-                                w=224, h=126,
-                                crop_margin=int(126*(1/6)))
+        h = 126
+        w = 224
+        crop_margin = int(h * (1/6))
+        process_images(image_fname, img_paths, w=w, h=h, crop_margin=crop_margin)
+    if do_images_high_res:
+        h = 1920
+        w = 3840
+        crop_margin = int(h * (1/6))
+        process_images(high_res_image_fname, img_paths, w=w, h=h, crop_margin=crop_margin)
 
     return coord_df, G, img_paths
 
@@ -806,6 +815,8 @@ if __name__ == '__main__':
 
     do_images = args.do_images
     print('do_images: {}'.format(do_images))
+    do_images_high_res = args.do_images_high_res
+    print('do_images_high_res: {}'.format(do_images_high_res))
     do_graph = args.do_graph
     print('do_graph: {}'.format(do_graph))
     do_plot = args.do_plot
@@ -814,5 +825,6 @@ if __name__ == '__main__':
     # Create dataset.
     coord_df, G, img_paths = create_dataset(data_path=data_path,
                                            do_images=do_images,
+                                           do_images_high_res=do_images_high_res,
                                            do_graph=do_graph,
                                            do_plot=do_plot)

@@ -24,7 +24,7 @@ for JPG_FOLDER in $VUZE_FOLDER/*/jpg/*; do
     CROP_FOLDER=`echo ${JPG_FOLDER%/*/*}/crop`
     mkdir -p $CROP_FOLDER
     # Crops and rotates Vuze frames.
-    python scripts/crop.py --input_dir=$JPG_FOLDER --output_dir=$CROP_FOLDER
+    python scripts/utils_crop.py --input_dir=$JPG_FOLDER --output_dir=$CROP_FOLDER
 done
 
 for CROP_FOLDER in $VUZE_FOLDER/*/crop; do

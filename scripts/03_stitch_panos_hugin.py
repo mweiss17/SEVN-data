@@ -53,8 +53,8 @@ if __name__ == '__main__':
         # Continue if file already exist
         if not os.path.isfile(out_fname):
             try:
-                # Run './scripts/stitch.sh' for each video frame.
-                cmd = ['./scripts/stitch.sh', input_dir, output_dir, frame_num]
+                # Run './scripts/utils_crop.sh' for each video frame.
+                cmd = ['./scripts/utils_crop.sh', input_dir, output_dir, frame_num]
                 print(cmd)
                 print(subprocess.check_output(cmd))
             except KeyboardInterrupt:
